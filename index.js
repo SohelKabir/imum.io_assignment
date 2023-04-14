@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import axios from 'axios';
 import chalk from 'chalk';
+import puppeteer from 'puppeteer';
 
 const log = console.log;
 
@@ -28,33 +29,6 @@ const addItems = ($) => {
 const getTotalAdsCount = ($) => {
   return $('main[data-testid="search-results"]').children('article').length;
 };
-const scrapeTruckItem = ($) => {
-  const itemsArr = [];
-
-  // Anyone of these three lines will returns the same result
-  // const $items = $('.ooa-1hab6wx').children('article');
-  const $items = $('main[data-testid="search-results"]').children('article');
-  //   const $items = $('ooa-1bmnxg7');
-
-  $items.each(function (i, element) {
-    // const id = $(element).attr('data-id');
-    // const url = $(element).find('a').attr('href');
-    // const price = $(element).find('.ooa-1bmnxg7').text();
-
-    // const item = {
-    //   itemId: id,
-    //   itemURL: url,
-    //   itemPrice: price,
-    // };
-    // itemsArr.push(item);
-
-    const adTitle = $(element).find('h2[data-testid="ad-title"]').text();
-
-    console.log(adTitle);
-  });
-
-  return itemsArr;
-};
 
 const scrapeData = async () => {
   try {
@@ -81,7 +55,7 @@ const scrapeData = async () => {
 
     // Question 4
 
-    const struckItem = scrapeTruckItem($);
+    const struckItem = await scrapeTruckItem($);
 
     console.log('========struckItem============================');
     console.log(struckItem);
@@ -130,6 +104,112 @@ const getNextPageUrl = ($) => {
     console.log('No pagination links found');
     return `No pagination link found`;
   }
+};
+
+const scrapeTruckItem = async ($) => {
+  // const itemsArr = [];
+
+  // // Anyone of these three lines will returns the same result
+  // // const $items = $('.ooa-1hab6wx').children('article');
+  // const $items = $('main[data-testid="search-results"]').children('article');
+  // //   const $items = $('ooa-1bmnxg7');
+
+  // $items.each(function (i, element) {
+  //   const id = $(element).attr('data-id');
+  //   const url = $(element).find('a').attr('href');
+  //   const price = $(element).find('.ooa-1bmnxg7').text();
+  //   const adTitle = $(element).find('h2[data-testid="ad-title"]').text();
+
+  //   const item = {
+  //     itemId: id,
+  //     itemURL: url,
+  //     itemPrice: price,
+  //     itemTitle: adTitle,
+  //   };
+  //   itemsArr.push(item);
+  // });
+
+  // return itemsArr;
+
+  const itemsArr = [];
+
+  const $items = $('main[data-testid="search-results"]').children('article');
+
+  const browser = await puppeteer.launch();
+  try {
+    // $items.each(async function (i, element) {
+    //   // const id = $(element).attr('data-id');
+    //   const url = $(element).find('a').attr('href');
+    //   // const price = $(element).find('.ooa-1bmnxg7').text();
+    //   // const adTitle = $(element).find('h2[data-testid="ad-title"]').text();
+
+    //   if (url) {
+    //     console.log('=========url===========================');
+    //     console.log(url);
+    //     console.log('==========url==========================');
+    //     const page = await browser.newPage();
+    //     await page.goto(url);
+    //     const html = await page.content();
+
+    //     console.log('=======html=============================');
+    //     console.log(html);
+    //     console.log('========html============================');
+    //   }
+    // });
+
+    const page = await browser.newPage();
+    await page.goto(
+      'https://www.otomoto.pl/oferta/mercedes-benz-actros-1845-euro-6-acc-stream-space-retarder-ID6Fratg.html'
+    );
+    const html = await page.content();
+
+    const $htmlData = cheerio.load(html);
+
+    const details = $htmlData('ul.offer-params__list li');
+
+    const data = {};
+
+    const id = $htmlData('#ad_id').first().text().trim();
+
+    const price = $htmlData('.offer-price__number').first().text().trim();
+    const title = $htmlData('.offer-title').first().text().trim();
+
+    data.id = id;
+    data.price = price;
+    data.title = title;
+
+    details.each(function () {
+      const label = $(this).find('span.offer-params__label').text().trim();
+      let value = $(this).find('div.offer-params__value').text().trim();
+      if (value === '') {
+        value = $(this).find('div.offer-params__value a').text().trim();
+      }
+      // data[label] = value
+
+      if (label === 'Rok produkcji') {
+        data['Years of producton'] = value;
+      }
+      if (label === 'Przebieg') {
+        data['mileage'] = value;
+      }
+      if (label === 'Moc') {
+        data['power'] = value;
+      }
+    });
+
+    for (let key in data) {
+      console.log('=============data=======================');
+      console.log(key, ' : ', data[key]);
+      console.log('===============data=====================');
+    }
+  } catch (error) {
+    console.log('==========errrr==========================');
+    console.log(error);
+    console.log('============errrr========================');
+  }
+  await browser.close();
+
+  return itemsArr;
 };
 
 scrapeData();
