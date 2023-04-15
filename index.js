@@ -7,11 +7,11 @@ const log = console.log;
 
 const scrapeData = async () => {
   const initURL =
-    'https://www.otomoto.pl/ciezarowe/uzytkowe/mercedes-benz/od-+2014/q-actros?search%5Bfilter_enum_damaged%5D=0&search%5Border%5D=created_at+%3Adesc';
+    'https://www.otomoto.pl/ciezarowe/uzytkowe/mercedes-benz/od-+2014/q-actros?search%5Bfilter_enum_damaged%5D=0&search%5Border%5D=created_at+%3Adesc&page=14';
   try {
-    const res = await axios.get(initURL);
+    // const res = await axios.get(initURL);
 
-    const $ = cheerio.load(res.data);
+    // const $ = cheerio.load(res.data);
 
     //Question: 1
 
@@ -67,22 +67,78 @@ const scrapeData = async () => {
     console.log('error.config:: ', error.config);
   }
 };
-scrapeData();
 
 const getALlPagesAds = async (initURL, allAdsData) => {
-  const res = await axios.get(initURL);
+  const browser = await puppeteer.launch();
+  const page = await browser.newPage();
 
-  const $ = cheerio.load(res.data);
+  await page.goto(initURL);
+  await page.waitForSelector('.pagination-list');
 
-  let truckItem = await scrapeTruckItem($);
-  allAdsData.push(truckItem);
+  const allPageList = [];
+  allPageList.push(initURL);
 
-  if (getNextPageUrl($)) {
-    const newURL = `https://www.otomoto.pl/${getNextPageUrl($)}`;
-    await getALlPagesAds(newURL, allAdsData);
+  let currentPageUrl = initURL;
+  while (true) {
+    const nextPageUrl = await getNextPageUrlByEvaluate(page);
+    if (!nextPageUrl) {
+      // "Next" button not found, there is no next page
+      break;
+    }
+
+    currentPageUrl = nextPageUrl;
+    console.log('current page:: ', currentPageUrl);
+    allPageList.push(currentPageUrl);
+
+    // Go to the next page and wait for it to load
+    await page.goto(currentPageUrl);
+    await page.waitForSelector('.pagination-list');
+  }
+  console.log('=========allPageList===========================');
+  console.log(allPageList);
+  console.log('=============allPageList=======================');
+
+  await browser.close();
+
+  const uniquePages = [...new Set(allPageList)]; // remove duplicates if there's any
+
+  for (const page of uniquePages) {
+    const res = await axios.get(page);
+    const $ = cheerio.load(res.data);
+
+    const truckItem = await scrapeTruckItem($);
+
+    console.log('truckItem::', truckItem);
+
+    allAdsData = [...allAdsData, ...truckItem];
   }
 
   return allAdsData;
+};
+const getNextPageUrlByEvaluate = async (page) => {
+  const nextButton = await page.$('li[data-testid="pagination-step-forwards"]');
+
+  if (!nextButton) {
+    // "Next" button not found, there is no next page
+    return null;
+  }
+
+  const ariaDisabledValue = await nextButton.evaluate((element) =>
+    element.getAttribute('aria-disabled')
+  );
+
+  if (ariaDisabledValue === 'true') {
+    return null;
+  }
+
+  // Evaluate the click on the "Next" button and wait for the page to load
+  const nextUrl = await page.evaluate(async (nextButton) => {
+    nextButton.click();
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    return window.location.href;
+  }, nextButton);
+
+  return nextUrl;
 };
 
 const addItems = ($) => {
@@ -148,7 +204,7 @@ const scrapeTruckItem = async ($) => {
 
     //TODO make it i <length before final submission, for testing i reduced loading data
 
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       const page = await browser.newPage();
       await page.goto(adsURL[i]);
       const html = await page.content();
@@ -194,3 +250,5 @@ const scrapeTruckItem = async ($) => {
 
   return itemsArr;
 };
+
+scrapeData();
