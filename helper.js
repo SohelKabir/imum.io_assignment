@@ -6,7 +6,7 @@ export const getAllPagesAds = async (initURL, browser) => {
   const page = await browser.newPage();
 
   await page.goto(initURL);
-  await page.waitForSelector('.pagination-list', { timeout: 60000 });
+  await page.waitForSelector('.pagination-list', { timeout: 0 });
 
   const allPageList = [];
   allPageList.push(initURL);
@@ -22,7 +22,7 @@ export const getAllPagesAds = async (initURL, browser) => {
     console.log('current page:: ', currentPageUrl);
     allPageList.push(currentPageUrl);
     await page.goto(currentPageUrl);
-    await page.waitForSelector('.pagination-list');
+    await page.waitForSelector('.pagination-list', { timeout: 0 });
   }
 
   console.log('allPageList:: ', allPageList);
